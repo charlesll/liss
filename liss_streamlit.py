@@ -57,6 +57,8 @@ if uploaded_file is not None:
      # for the plot: a nice X axis interpolating values
      x_fit = np.arange(np.min(data.loc[:,"T_K"]), np.max(data.loc[:,"T_K"]))
 
+     st.subheader("Results")
+
      if option == "VFT":
          st.write("Equation VFT selected, calculated parameters are:")
          col1, col2, col3, col4 = st.columns(4)
@@ -80,17 +82,16 @@ if uploaded_file is not None:
          with col4:
              st.metric('RMSE', '{:.2f}'.format(RMSE))
 
-
      fig = make_subplots(rows=1, cols=2,horizontal_spacing = 0.1,subplot_titles=("Melt viscosity", "Residuals"))
      fig.add_trace(
          go.Scatter(mode='markers',x=10000/data.loc[:,"T_K"], y=data.loc[:,"viscosity"],name="data", legendgroup=1), row=1, col=1)
 
      if option == "VFT":
         fig.add_trace(go.Scatter(x=10000/x_fit, y=tvf(x_fit, *popt),name="TVF fit", legendgroup=1), row=1, col=1)
-        fig.add_trace(go.Scatter(mode='markers',x=data.loc[:,"T_K"], y=tvf(data.loc[:,"T_K"], *popt)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
+        fig.add_trace(go.Scatter(mode='markers',x=10000/data.loc[:,"T_K"], y=tvf(data.loc[:,"T_K"], *popt)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
      if option == "ADAM-GIBBS":
         fig.add_trace(go.Scatter(x=10000/x_fit, y=ag(x_fit, *popt_ag),name="AG fit", legendgroup=1), row=1, col=1)
-        fig.add_trace(go.Scatter(mode='markers',x=data.loc[:,"T_K"], y=ag(data.loc[:,"T_K"], *popt_ag)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
+        fig.add_trace(go.Scatter(mode='markers',x=10000/data.loc[:,"T_K"], y=ag(data.loc[:,"T_K"], *popt_ag)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
 
      # Update xaxis properties
      fig.update_xaxes(title_text=r'10000/T, K', row=1, col=1)
@@ -110,4 +111,5 @@ if uploaded_file is not None:
      data["Calculated"] = y_calc
      data["RMSE"] = np.sqrt((data.loc[:,"viscosity"].ravel()-y_calc.ravel())**2)
 
-     st.table(data.round(decimals=2))
+     with st.expander("Table:"):
+         st.table(data.round(decimals=2))
