@@ -19,18 +19,16 @@ st.title('Liss: Fit of viscosity data with VFT or Adam-Gibbs equation')
 
 with st.sidebar.form(key='my_form'):
     uploaded_file = st.file_uploader("Choose a two columns CSV file with headers T_K and viscosity")
-    st.form_submit_button()
 
-col1, col2 = st.columns(2)
-with col1:
     option = st.selectbox(
          'Which equation you want to use?',
          ('VFT', 'ADAM-GIBBS'))
 
-if option == 'ADAM-GIBBS':
-    with col2:
-        ap = st.number_input('Enter ap to calculate Cpconf')
-        b = st.number_input('Enter b to calculate Cp conf')
+    st.write('For Adam-Gibbs calculation, please enter the parameters to calculate CpConf:')
+    ap = st.number_input('ap:')
+    b = st.number_input('b:')
+
+    st.form_submit_button()
 
 if uploaded_file is not None:
      # To read file as bytes:
@@ -50,47 +48,66 @@ if uploaded_file is not None:
      if option == 'ADAM-GIBBS':
          # fit AG
          ag = lambda T,A,B,ScTg: A + B/(ScTg + ap*np.log(T/Tg) + b*(T-Tg))
-         popt_ag, pcov_ag = curve_fit(ag, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-3.5, 8000, 10.0], bounds = ([-20,0,0],[20, np.inf, np.inf]))
+         popt_ag, pcov_ag = curve_fit(ag, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-3.5, 8000, 10.0], method="dogbox", bounds = ([-20,0,0],[20, np.inf, np.inf]))
          perr_ag = np.sqrt(np.diag(pcov_ag))
 
-         y_calc_ag = ag(data.loc[:,"T_K"], *popt_ag)
-         RMSE_ag = np.sqrt(np.mean((data.loc[:,"viscosity"].ravel()-y_calc_ag.ravel())**2))
+         y_calc = ag(data.loc[:,"T_K"], *popt_ag)
+         RMSE = np.sqrt(np.mean((data.loc[:,"viscosity"].ravel()-y_calc.ravel())**2))
 
      # for the plot: a nice X axis interpolating values
      x_fit = np.arange(np.min(data.loc[:,"T_K"]), np.max(data.loc[:,"T_K"]))
 
-     fig = go.Figure()
+     if option == "VFT":
+         st.write("Equation VFT selected, calculated parameters are:")
+         col1, col2, col3, col4 = st.columns(4)
+         with col1:
+             st.metric('A', "{:.2f} +/- {:.1f}".format(popt[0], perr[0]))
+         with col2:
+             st.metric('B', "{:.1f} +/- {:.1f}".format(popt[1], perr[1]))
+         with col3:
+             st.metric('C', "{:.1f} +/- {:.1f}".format(popt[2], perr[2]))
+         with col4:
+             st.metric('RMSE', '{:.2f}'.format(RMSE))
+     elif option == "ADAM-GIBBS":
+         st.write("Equation Adam-Gibbs selected, calculated parameters are:")
+         col1, col2, col3, col4 = st.columns(4)
+         with col1:
+             st.metric('Ae', "{:.2f} +/- {:.2f}".format(popt_ag[0],perr_ag[0]))
+         with col2:
+             st.metric('Be', "{:.1f} +/- {:.1f}".format(popt_ag[1], perr_ag[1]))
+         with col3:
+             st.metric('Sconf(Tg)', "{:.1f} +/- {:.1f}".format(popt_ag[2], perr_ag[2]))
+         with col4:
+             st.metric('RMSE', '{:.2f}'.format(RMSE))
+
+
+     fig = make_subplots(rows=1, cols=2,horizontal_spacing = 0.1,subplot_titles=("Melt viscosity", "Residuals"))
      fig.add_trace(
-         go.Scatter(mode='markers',x=10000/data.loc[:,"T_K"], y=data.loc[:,"viscosity"],name="data", legendgroup=1))
+         go.Scatter(mode='markers',x=10000/data.loc[:,"T_K"], y=data.loc[:,"viscosity"],name="data", legendgroup=1), row=1, col=1)
 
      if option == "VFT":
-         fig.add_trace(
-             go.Scatter(x=10000/x_fit, y=tvf(x_fit, *popt),name="TVF", legendgroup=1))
-     elif option == "ADAM-GIBBS":
-         fig.add_trace(
-            go.Scatter(x=10000/x_fit, y=ag(x_fit, *popt_ag),name="AG", legendgroup=1))
+        fig.add_trace(go.Scatter(x=10000/x_fit, y=tvf(x_fit, *popt),name="TVF fit", legendgroup=1), row=1, col=1)
+        fig.add_trace(go.Scatter(mode='markers',x=data.loc[:,"T_K"], y=tvf(data.loc[:,"T_K"], *popt)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
+     if option == "ADAM-GIBBS":
+        fig.add_trace(go.Scatter(x=10000/x_fit, y=ag(x_fit, *popt_ag),name="AG fit", legendgroup=1), row=1, col=1)
+        fig.add_trace(go.Scatter(mode='markers',x=data.loc[:,"T_K"], y=ag(data.loc[:,"T_K"], *popt_ag)-data.loc[:,"viscosity"],name="residuals", legendgroup=2), row=1, col=2)
 
-     fig.update_layout(
-        title="Viscosity data fit",
-        xaxis_title="10000/T",
-        yaxis_title="log10 Viscosity",
-        font=dict(
-            family="Courier New, monospace",
-            size=18,
-            color="RebeccaPurple"
-        )
-    )
+     # Update xaxis properties
+     fig.update_xaxes(title_text=r'10000/T, K', row=1, col=1)
+     fig.update_yaxes(title_text=r"log<sub>10</sub> viscosity", row=1, col=1)
+
+     # Update xaxis properties
+     fig.update_xaxes(title_text=r'10000/T, K', row=1, col=2)
+     fig.update_yaxes(title_text=r"residuals, log10 units", row=1, col=2)
+
+     fig.update_layout(autosize=True)
+
      st.plotly_chart(fig)
-
      ###
      # Print residuals
      ###
-     if option == "VFT":
-         data["TVF_calc"] = y_calc
-         data["TVF_RMSE"] = np.sqrt((data.loc[:,"viscosity"].ravel()-y_calc.ravel())**2)
 
-     elif option == "ADAM-GIBBS":
-         data["AG_calc"] = y_calc_ag
-         data["AG_RMSE"] = np.sqrt((data.loc[:,"viscosity"].ravel()-y_calc_ag.ravel())**2)
+     data["Calculated"] = y_calc
+     data["RMSE"] = np.sqrt((data.loc[:,"viscosity"].ravel()-y_calc.ravel())**2)
 
      st.table(data.round(decimals=2))
