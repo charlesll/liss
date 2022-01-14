@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
-
 def tvf(T,A,B,C):
     return A + B/(T-C)
 
@@ -24,9 +23,14 @@ with st.sidebar.form(key='my_form'):
          'Which equation you want to use?',
          ('VFT', 'ADAM-GIBBS'))
 
-    st.write('For Adam-Gibbs calculation, please enter the parameters to calculate CpConf:')
-    ap = st.number_input('ap:')
-    b = st.number_input('b:')
+    option2 = st.selectbox(
+         'Which regression method?',
+         ('trf', 'dogbox', 'lm'))
+
+    st.write('For Adam-Gibbs calculation, please enter the parameters for CpConf:')
+    ap_ = st.number_input('ap:')
+    b_ = st.number_input('b:')
+    #Tg = st.number_input('Tg:')
 
     st.form_submit_button()
 
@@ -35,20 +39,20 @@ if uploaded_file is not None:
      data = pd.read_csv(uploaded_file)
 
      # fit TVF
-     popt, pcov = curve_fit(tvf, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-4.5, 8000, 500], method="dogbox", bounds = ([-20,0,0],[20, np.inf, np.inf]))
+     popt, pcov = curve_fit(tvf, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-4.5, 8000, 500], method=option2, bounds = ([-20,0,0],[20, np.inf, np.inf]))
      perr = np.sqrt(np.diag(pcov))
 
      # RMSE calculation
      y_calc = tvf(data.loc[:,"T_K"], *popt)
      RMSE = np.sqrt(np.mean((data.loc[:,"viscosity"].ravel()-y_calc.ravel())**2))
 
-     # get TG
+     # get TG => NOPE, get it from user.
      Tg = tg_from_tvf(*popt)
 
      if option == 'ADAM-GIBBS':
          # fit AG
-         ag = lambda T,A,B,ScTg: A + B/(ScTg + ap*np.log(T/Tg) + b*(T-Tg))
-         popt_ag, pcov_ag = curve_fit(ag, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-3.5, 8000, 10.0], method="dogbox", bounds = ([-20,0,0],[20, np.inf, np.inf]))
+         ag = lambda T,Ae,Be,ScTg: Ae + Be/(T*(ScTg + ap_*(np.log(T)-np.log(Tg)) + b_*(T-Tg)))
+         popt_ag, pcov_ag = curve_fit(ag, data.loc[:,"T_K"], data.loc[:,"viscosity"], p0 = [-3.5, 80000, 5.0], method=option2, bounds = ([-20,0,0],[20, np.inf, np.inf]))
          perr_ag = np.sqrt(np.diag(pcov_ag))
 
          y_calc = ag(data.loc[:,"T_K"], *popt_ag)
